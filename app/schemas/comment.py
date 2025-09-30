@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 import re
@@ -8,10 +8,11 @@ class CommentBase(BaseModel):
     """评论基础模型"""
     page: str = Field(..., min_length=1, max_length=200, description="页面唯一标识")
     username: str = Field(..., min_length=2, max_length=100, description="用户显示名称")
-    content: str = Field(..., min_length=10, max_length=2000, description="评论内容")
+    content: str = Field(..., min_length=3, max_length=2000, description="评论内容")
     parent_id: Optional[int] = Field(None, description="父评论ID，null表示顶级评论")
     
-    @validator('username')
+    @field_validator('username')
+    @classmethod
     def validate_username(cls, v):
         """验证用户名格式"""
         if not v.strip():
@@ -23,7 +24,8 @@ class CommentBase(BaseModel):
         
         return v.strip()
     
-    @validator('content')
+    @field_validator('content')
+    @classmethod
     def validate_content(cls, v):
         """验证评论内容"""
         if not v.strip():
@@ -38,7 +40,8 @@ class CommentBase(BaseModel):
         
         return v.strip()
     
-    @validator('page')
+    @field_validator('page')
+    @classmethod
     def validate_page(cls, v):
         """验证页面标识"""
         if not v.strip():
@@ -53,7 +56,7 @@ class CommentCreate(CommentBase):
 
 class CommentUpdate(BaseModel):
     """更新评论请求模型（管理员用）"""
-    content: Optional[str] = Field(None, min_length=10, max_length=2000, description="评论内容")
+    content: Optional[str] = Field(None, min_length=3, max_length=2000, description="评论内容")
     is_deleted: Optional[bool] = Field(None, description="软删除标记")
 
 
