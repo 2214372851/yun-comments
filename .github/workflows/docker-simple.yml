@@ -1,14 +1,29 @@
 name: 发布Docker镜像
 
 on:
-  # 当推送标签时触发
+  # 当推送版本标签时触发
   push:
     tags:
-      - 'v*'
-    branches: [ main ]
+      - 'v*.*.*'
+      - 'v*.*.*-*'
   
   # 允许手动触发
   workflow_dispatch:
+    inputs:
+      tag:
+        description: '自定义镜像标签'
+        required: false
+        default: 'manual'
+        type: string
+      platforms:
+        description: '构建平台'
+        required: false
+        default: 'linux/amd64,linux/arm64'
+        type: choice
+        options:
+        - 'linux/amd64,linux/arm64'
+        - 'linux/amd64'
+        - 'linux/arm64'
 
 env:
   REGISTRY: ghcr.io
@@ -41,14 +56,15 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # 主分支标记为latest
-            type=raw,value=latest,enable={{is_default_branch}}
+            # 手动触发时使用输入的标签
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
+            # 手动触发默认标签
+            type=raw,value=manual-{{sha}},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag == '' }}
             # 版本标签
             type=ref,event=tag
-            # 分支名
-            type=ref,event=branch
-            # 短commit SHA
-            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
           labels: |
             org.opencontainers.image.title=评论系统后端
             org.opencontainers.image.description=为https://www.yhnotes.com静态博客提供评论功能的FastAPI后端服务
@@ -63,7 +79,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -78,6 +94,13 @@ jobs:
         run: |
           echo "## 🐳 Docker镜像构建成功！" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**触发方式:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "**手动触发参数:**" >> $GITHUB_STEP_SUMMARY
+            echo "- 自定义标签: ${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+            echo "- 构建平台: ${{ github.event.inputs.platforms }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "**镜像标签:**" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
@@ -85,5 +108,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**使用方法:**" >> $GITHUB_STEP_SUMMARY
           echo '```bash' >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ghcr.io/${{ github.repository_owner }}/$(echo ${{ github.repository }} | cut -d'/' -f2):latest" >> $GITHUB_STEP_SUMMARY
+          echo "# 拉取镜像" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull 第一个标签" | head -1 >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# 运行容器" >> $GITHUB_STEP_SUMMARY
+          echo "docker run -p 8000:8000 第一个标签" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY

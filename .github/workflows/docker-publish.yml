@@ -1,17 +1,30 @@
 name: 构建并推送Docker镜像到GitHub Packages
 
 on:
-  # 当推送到main分支时触发
+  # 当推送版本标签时触发
   push:
-    branches: [ "main", "master" ]
-    tags: [ 'v*.*.*' ]
-  
-  # 当创建Pull Request到main分支时触发
-  pull_request:
-    branches: [ "main", "master" ]
+    tags:
+      - 'v*.*.*'
+      - 'v*.*.*-*'
   
   # 允许手动触发
   workflow_dispatch:
+    inputs:
+      tag:
+        description: '自定义镜像标签'
+        required: false
+        default: 'manual'
+        type: string
+      enable_security_scan:
+        description: '启用安全扫描'
+        required: false
+        default: true
+        type: boolean
+      enable_signing:
+        description: '启用镜像签名'
+        required: false
+        default: true
+        type: boolean
 
 env:
   # 使用GitHub Container Registry
@@ -34,7 +47,6 @@ jobs:
       uses: actions/checkout@v4
 
     - name: 安装cosign
-      if: github.event_name != 'pull_request'
       uses: sigstore/cosign-installer@v3.2.0
       with:
         cosign-release: 'v2.1.1'
@@ -43,7 +55,6 @@ jobs:
       uses: docker/setup-buildx-action@v3
 
     - name: 登录到Container Registry
-      if: github.event_name != 'pull_request'
       uses: docker/login-action@v3
       with:
         registry: ${{ env.REGISTRY }}
@@ -56,16 +67,15 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
-          # 为每个分支设置标签
-          type=ref,event=branch
-          # 为PR设置标签
-          type=ref,event=pr
-          # 为版本标签设置标签
+          # 手动触发时使用输入的标签
+          type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
+          # 手动触发默认标签
+          type=raw,value=manual-{{sha}},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag == '' }}
+          # 版本标签
+          type=ref,event=tag
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
           type=semver,pattern={{major}}
-          # 为主分支设置latest标签
-          type=raw,value=latest,enable={{is_default_branch}}
         labels: |
           org.opencontainers.image.title=评论系统后端
           org.opencontainers.image.description=为静态博客提供评论功能的FastAPI后端服务
@@ -79,7 +89,7 @@ jobs:
         context: .
         file: ./Dockerfile
         platforms: linux/amd64,linux/arm64
-        push: ${{ github.event_name != 'pull_request' }}
+        push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
@@ -91,7 +101,7 @@ jobs:
 
     # 签名容器镜像
     - name: 使用cosign签名容器镜像
-      if: ${{ github.event_name != 'pull_request' }}
+      if: ${{ github.event.inputs.enable_signing != 'false' }}
       env:
         # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
         TAGS: ${{ steps.meta.outputs.tags }}
@@ -100,15 +110,15 @@ jobs:
       run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
 
     - name: 生成安全报告
-      if: ${{ github.event_name != 'pull_request' }}
+      if: ${{ github.event.inputs.enable_security_scan != 'false' }}
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] || 'manual' }}
         format: 'sarif'
         output: 'trivy-results.sarif'
 
     - name: 上传安全报告到GitHub Security
-      if: ${{ github.event_name != 'pull_request' }}
+      if: ${{ github.event.inputs.enable_security_scan != 'false' }}
       uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: 'trivy-results.sarif'

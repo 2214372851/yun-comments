@@ -7,13 +7,15 @@
 ## 📁 工作流文件
 
 ### 1. 简化版本 (.github/workflows/docker-simple.yml)
-- **触发条件**: 推送到main分支、创建版本标签、手动触发
+- **触发条件**: 推送版本标签、手动触发
 - **功能**: 构建多架构镜像(amd64/arm64)并推送到ghcr.io
+- **特点**: 支持自定义标签和构建平台选择
 - **推荐**: 生产环境使用
 
 ### 2. 完整版本 (.github/workflows/docker-publish.yml)  
-- **触发条件**: 推送到main分支、PR、版本标签
+- **触发条件**: 推送版本标签、手动触发
 - **功能**: 包含安全扫描、镜像签名等高级功能
+- **特点**: 可选择性启用安全扫描和签名功能
 - **推荐**: 企业级项目使用
 
 ## ⚙️ 设置步骤
@@ -46,16 +48,26 @@ Get-ChildItem -Recurse -Include *.yml,*.md | ForEach-Object { (Get-Content $_) -
 
 ### 3. 推送代码触发构建
 
+#### 方式一：创建版本标签
 ```bash
-# 推送到main分支触发构建
-git add .
-git commit -m "Add GitHub Actions for Docker build and publish"
-git push origin main
-
-# 或者创建版本标签
+# 创建版本标签触发构建
 git tag v1.0.0
 git push origin v1.0.0
+
+# 支持的标签格式
+git tag v1.0.0        # 正式版本
+git tag v1.0.0-beta   # 预发布版本
+git tag v1.0.0-rc.1   # 发布候选
 ```
+
+#### 方式二：手动触发
+1. 进入GitHub仓库
+2. 点击 `Actions` 标签
+3. 选择 `发布Docker镜像` 工作流
+4. 点击 `Run workflow`
+5. 填写参数：
+   - **自定义标签**: 默认为 `manual`，可自定义
+   - **构建平台**: 选择要构建的架构
 
 ## 📦 镜像访问
 
@@ -85,8 +97,27 @@ docker pull ghcr.io/your-username/yun-comments:v1.0.0
 ```yaml
 on:
   push:
-    branches: [ main, develop ]  # 添加更多分支
-    tags: [ 'v*', 'release-*' ]  # 自定义标签格式
+    tags: 
+      - 'v*.*.*'        # 版本标签
+      - 'release-*'     # 发布标签
+  
+  # 手动触发设置
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '自定义镜像标签'
+        required: false
+        default: 'manual'
+        type: string
+      platforms:
+        description: '构建平台'
+        required: false
+        default: 'linux/amd64,linux/arm64'
+        type: choice
+        options:
+        - 'linux/amd64,linux/arm64'
+        - 'linux/amd64'
+        - 'linux/arm64'
   
   # 定时构建 (每天凌晨2点)
   schedule:
