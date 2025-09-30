@@ -69,7 +69,7 @@ class CommentResponse(BaseModel):
     updated_at: datetime
     system_type: Optional[str]
     location: Optional[str]
-    children: List['CommentResponse'] = []
+    reply_count: int = Field(0, description="回复数量")
     
     class Config:
         from_attributes = True
@@ -87,10 +87,26 @@ class CommentListResponse(BaseModel):
 class CommentQuery(BaseModel):
     """评论查询参数模型"""
     page: str = Field(..., description="页面标识")
-    page_num: int = Field(1, ge=1, description="页码")
-    page_size: int = Field(20, ge=1, le=100, description="每页数量")
+    cursor: Optional[str] = Field(None, description="游标，用于分页")
+    limit: int = Field(20, ge=1, le=100, description="每页数量")
     sort: str = Field("created_at", description="排序字段")
     order: str = Field("desc", pattern="^(asc|desc)$", description="排序方向")
+    parent_only: bool = Field(True, description="只获取顶级评论")
+
+
+class CursorPaginationResponse(BaseModel):
+    """游标分页响应模型"""
+    comments: List[CommentResponse]
+    has_next: bool
+    next_cursor: Optional[str]
+    total: Optional[int] = None  # 可选的总数统计
+
+
+class RepliesQuery(BaseModel):
+    """回复查询参数模型"""
+    parent_id: int = Field(..., description="父评论 ID")
+    cursor: Optional[str] = Field(None, description="游标")
+    limit: int = Field(10, ge=1, le=50, description="每页数量")
 
 
 class HealthCheck(BaseModel):

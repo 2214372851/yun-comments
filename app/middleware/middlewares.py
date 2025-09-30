@@ -150,13 +150,7 @@ def setup_cors_middleware(app):
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=[
-            "Accept",
-            "Accept-Language",
-            "Content-Language",
-            "Content-Type",
-            "Authorization",
-            "X-Requested-With",
-            "X-Request-ID",
+            "*",
         ],
         expose_headers=[
             "X-Request-ID",

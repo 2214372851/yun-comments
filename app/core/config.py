@@ -30,9 +30,6 @@ class Settings(BaseSettings):
     
     # IP限流配置
     IP_RATE_LIMIT: int = 10  # 每分钟请求数
-    USER_RATE_LIMIT: int = 5  # 每分钟请求数
-    GLOBAL_RATE_LIMIT: int = 1000  # 每分钟请求数
-    EMAIL_RATE_LIMIT: int = 3  # 每5分钟请求数
     
     # 地区API配置
     VORE_API_URL: str = "https://api.vore.top/api/IP"

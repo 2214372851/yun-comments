@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db, check_db_connection, check_redis_connection
@@ -7,11 +7,12 @@ from app.core.exceptions import ValidationException, NotFoundError, DatabaseExce
 from app.services.comment_service import get_comment_service
 from app.schemas.comment import (
     CommentCreate, CommentResponse, CommentListResponse, 
-    CommentQuery, CommentUpdate, HealthCheck, ErrorResponse
+    CommentQuery, CommentUpdate, HealthCheck, ErrorResponse,
+    CursorPaginationResponse, RepliesQuery
 )
-from app.utils.rate_limiter import limiter, check_email_rate_limit_for_comment
+from app.utils.rate_limiter import limiter, check_comment_rate_limit
 from app.utils.helpers import ResponseUtils
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 from datetime import datetime
 
@@ -31,32 +32,29 @@ router = APIRouter(
 
 @router.get(
     "/comments",
-    response_model=CommentListResponse,
-    summary="获取评论列表",
-    description="获取指定页面的评论列表，支持分页和排序"
+    response_model=CursorPaginationResponse,
+    summary="获取评论列表（只返回顶级评论及回复数）",
+    description="获取指定页面的顶级评论列表，每条评论包含回复数量"
 )
-@limiter.limit("10/minute")
+@limiter.limit("30/minute")
 async def get_comments(
     request: Request,
     page: str,
-    page_num: int = 1,
-    page_size: int = 20,
-    sort: str = "created_at",
-    order: str = "desc",
+    cursor: Optional[str] = None,
+    limit: int = Query(20, ge=1, le=100),
+    sort: str = Query("created_at", description="排序字段"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
     db: Session = Depends(get_db)
 ):
-    """获取评论列表"""
+    """获取顶级评论列表（不包含回复内容）"""
     try:
-        # 验证查询参数
-        if page_size > settings.MAX_PAGE_SIZE:
-            page_size = settings.MAX_PAGE_SIZE
-        
         query = CommentQuery(
             page=page,
-            page_num=page_num,
-            page_size=page_size,
+            cursor=cursor,
+            limit=limit,
             sort=sort,
-            order=order
+            order=order,
+            parent_only=True  # 强制为 True
         )
         
         # 获取评论服务
@@ -65,7 +63,7 @@ async def get_comments(
         # 查询评论
         result = await comment_service.get_comments(query)
         
-        return CommentListResponse(**result)
+        return CursorPaginationResponse(**result)
         
     except ValidationException as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -83,7 +81,7 @@ async def get_comments(
     summary="创建评论",
     description="创建新评论或回复现有评论"
 )
-@limiter.limit("5/minute")
+@limiter.limit("10/minute")
 async def create_comment(
     request: Request,
     comment_data: CommentCreate,
@@ -91,8 +89,11 @@ async def create_comment(
 ):
     """创建评论"""
     try:
+        # 检查评论提交限流（5分钟内最多3次）
+        await check_comment_rate_limit(request)
+        
         # 获取客户端信息
-        client_ip = getattr(request.state, 'client_ip', request.client.host)
+        client_ip = getattr(request.state, 'client_ip', request.client.host if request.client else '127.0.0.1')
         user_agent = getattr(request.state, 'user_agent', request.headers.get("user-agent", ""))
         
         # 获取评论服务
@@ -179,6 +180,43 @@ async def update_comment(
     except Exception as e:
         logger.error(f"Unexpected error in update_comment: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="更新评论失败")
+
+
+@router.get(
+    "/comments/{comment_id}/replies",
+    response_model=CursorPaginationResponse,
+    summary="获取评论回复",
+    description="获取指定评论的回复列表"
+)
+async def get_comment_replies(
+    comment_id: int,
+    cursor: Optional[str] = None,
+    limit: int = Query(10, ge=1, le=50),
+    db: Session = Depends(get_db)
+):
+    """获取评论回复"""
+    try:
+        query = RepliesQuery(
+            parent_id=comment_id,
+            cursor=cursor,
+            limit=limit
+        )
+        
+        # 获取评论服务
+        comment_service = get_comment_service(db)
+        
+        # 查询回复
+        result = await comment_service.get_replies(query)
+        
+        return CursorPaginationResponse(**result)
+        
+    except ValidationException as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except DatabaseException as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error in get_comment_replies: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="获取回复失败")
 
 
 @router.get(

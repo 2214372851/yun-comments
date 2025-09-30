@@ -1,124 +1,172 @@
-# 静态网站评论系统后端
+# 博客评论系统
 
-# 评论系统后端
+一个基于FastAPI的高性能评论系统，专为静态博客设计。
 
-[![Docker Build](https://github.com/yourusername/yun-comments/actions/workflows/docker-simple.yml/badge.svg)](https://github.com/yourusername/yun-comments/actions/workflows/docker-simple.yml)
-[![Docker Pulls](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/yourusername/yun-comments/pkgs/container/yun-comments)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+## 🚀 核心特性
 
-为静态网站提供评论功能的后端服务，支持嵌套回复、用户身份验证、限流保护等核心功能。
+- **高性能**: 使用FastAPI + PostgreSQL + Redis
+- **游标分页**: 支持大数据量评论加载
+- **分层设计**: 顶级评论与回复分离，按需加载
+- **IP限流**: 智能防刷机制
+- **容器化**: 支持Docker一键部署
 
-## 技术栈
+## 📋 系统要求
 
-- **后端框架**: FastAPI
-- **数据库**: PostgreSQL
-- **ORM**: SQLAlchemy
-- **缓存**: Redis
-- **限流**: slowapi
-- **验证**: Pydantic
-
-## 快速开始
-
-### 环境要求
-
-- Python 3.8+
-- PostgreSQL 12+
+- Python 3.11+
+- PostgreSQL 13+
 - Redis 6+
 - Docker & Docker Compose (可选)
 
-### 本地开发
+## 🛠️ 快速开始
 
-1. 克隆项目
+### 方式一：Docker 部署 (推荐)
+
 ```bash
+# 克隆项目
 git clone <repository-url>
 cd yun-comments
-```
 
-2. 创建虚拟环境
-```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate  # Windows
-```
-
-3. 安装依赖
-```bash
-pip install -r requirements.txt
-```
-
-4. 配置环境变量
-```bash
+# 配置环境变量
 cp .env.example .env
-# 编辑 .env 文件，配置数据库和Redis连接
-```
+vim .env  # 修改数据库配置
 
-5. 运行数据库迁移
-```bash
-alembic upgrade head
-```
-
-6. 启动服务
-```bash
-uvicorn app.main:app --reload
-```
-
-### Docker 部署
-
-#### 快速启动（开发环境）
-
-```bash
-# 使用本地构建
+# 启动服务
 docker-compose up -d
 ```
 
-#### 生产部署（使用GitHub Packages镜像）
+### 方式二：本地开发
 
 ```bash
-# 从 GitHub Packages 拉取镜像
-docker pull ghcr.io/yourusername/yun-comments:latest
+# 安装依赖
+pip install -r requirements.txt
 
-# 使用生产配置启动
-cp .env.production.example .env
-# 编辑 .env 文件，配置生产环境参数
-docker-compose -f docker-compose.prod.yml up -d
+# 配置环境变量
+cp .env.example .env
+vim .env
+
+# 数据库迁移
+alembic upgrade head
+
+# 启动服务
+python -m uvicorn app.main:app --reload
 ```
 
-📝 **详细部署指南**: [docs/DOCKER.md](docs/DOCKER.md)
+## 🔧 环境配置
 
-## API 文档
+复制 `.env.example` 为 `.env` 并配置：
 
-服务启动后访问：http://localhost:8000/docs
+```env
+# 数据库配置
+DATABASE_URL=postgresql://username:password@localhost:5432/dbname
 
-## 项目结构
+# Redis配置
+REDIS_URL=redis://localhost:6379/0
 
-```
-app/
-├── api/           # API路由
-├── core/          # 核心配置
-├── middleware/    # 中间件
-├── models/        # 数据库模型
-├── schemas/       # Pydantic模型
-├── services/      # 业务逻辑
-└── utils/         # 工具函数
-tests/             # 测试文件
-alembic/           # 数据库迁移
+# 应用配置
+SECRET_KEY=your-secret-key
+ENVIRONMENT=production
 ```
 
-## 功能特性
+## 📡 API 接口
 
-- ✅ 嵌套评论回复
-- ✅ 多层限流保护
-- ✅ 自动获取用户地区信息
-- ✅ 系统类型检测
-- ✅ 垃圾评论过滤
-- ✅ Redis缓存优化
-- ✅ 完整的API文档
-- ✅ 单元测试覆盖
+### 获取评论列表
+```http
+GET /api/comments?page=blog-post-1&limit=20
+```
 
-## 贡献指南
+### 获取评论回复
+```http
+GET /api/comments/{id}/replies?limit=10
+```
 
-欢迎提交 Issue 和 Pull Request！
+### 创建评论
+```http
+POST /api/comments
+Content-Type: application/json
 
-## 许可证
+{
+  "page": "blog-post-1",
+  "username": "张三",
+  "email": "zhangsan@example.com",
+  "content": "这是一条评论",
+  "parent_id": null
+}
+```
+
+### 健康检查
+```http
+GET /api/health
+```
+
+## 🗂️ 项目结构
+
+```
+yun-comments/
+├── app/                    # 应用代码
+│   ├── api/               # API路由
+│   ├── core/              # 核心配置
+│   ├── models/            # 数据模型
+│   ├── schemas/           # 数据验证
+│   ├── services/          # 业务逻辑
+│   ├── middleware/        # 中间件
+│   ├── utils/             # 工具函数
+│   └── main.py            # 应用入口
+├── alembic/               # 数据库迁移
+├── docker-compose.yml     # Docker编排
+├── Dockerfile             # Docker镜像
+├── nginx.conf             # Nginx配置
+├── requirements.txt       # Python依赖
+└── README.md              # 项目文档
+```
+
+## 🔐 安全特性
+
+- IP限流：5分钟内最多3次评论
+- 内容过滤：防止XSS和垃圾评论
+- 输入验证：严格的数据验证
+- 环境隔离：生产环境安全配置
+
+## 📊 性能优化
+
+- **游标分页**: 替代传统OFFSET分页，性能更优
+- **Redis缓存**: 热点数据缓存，减少数据库压力
+- **分层加载**: 顶级评论优先，回复按需加载
+- **数据库索引**: 优化查询性能
+
+## 🐛 故障排除
+
+### 数据库连接失败
+```bash
+# 检查PostgreSQL服务
+sudo systemctl status postgresql
+
+# 检查连接配置
+psql -h localhost -U username -d dbname
+```
+
+### Redis连接失败
+```bash
+# 检查Redis服务
+sudo systemctl status redis
+
+# 测试连接
+redis-cli ping
+```
+
+### 容器启动失败
+```bash
+# 查看日志
+docker-compose logs -f
+
+# 重建容器
+docker-compose down
+docker-compose up --build
+```
+
+## 📝 许可证
 
 MIT License
+
+## 🤝 贡献
+
+欢迎提交Issue和Pull Request！
