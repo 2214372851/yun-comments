@@ -1,5 +1,11 @@
 # 静态网站评论系统后端
 
+# 评论系统后端
+
+[![Docker Build](https://github.com/yourusername/yun-comments/actions/workflows/docker-simple.yml/badge.svg)](https://github.com/yourusername/yun-comments/actions/workflows/docker-simple.yml)
+[![Docker Pulls](https://img.shields.io/badge/docker-ghcr.io-blue)](https://github.com/yourusername/yun-comments/pkgs/container/yun-comments)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 为静态网站提供评论功能的后端服务，支持嵌套回复、用户身份验证、限流保护等核心功能。
 
 ## 技术栈
@@ -58,9 +64,26 @@ uvicorn app.main:app --reload
 
 ### Docker 部署
 
+#### 快速启动（开发环境）
+
 ```bash
+# 使用本地构建
 docker-compose up -d
 ```
+
+#### 生产部署（使用GitHub Packages镜像）
+
+```bash
+# 从 GitHub Packages 拉取镜像
+docker pull ghcr.io/yourusername/yun-comments:latest
+
+# 使用生产配置启动
+cp .env.production.example .env
+# 编辑 .env 文件，配置生产环境参数
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+📝 **详细部署指南**: [docs/DOCKER.md](docs/DOCKER.md)
 
 ## API 文档
 

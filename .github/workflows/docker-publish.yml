@@ -1,0 +1,114 @@
+name: 构建并推送Docker镜像到GitHub Packages
+
+on:
+  # 当推送到main分支时触发
+  push:
+    branches: [ "main", "master" ]
+    tags: [ 'v*.*.*' ]
+  
+  # 当创建Pull Request到main分支时触发
+  pull_request:
+    branches: [ "main", "master" ]
+  
+  # 允许手动触发
+  workflow_dispatch:
+
+env:
+  # 使用GitHub Container Registry
+  REGISTRY: ghcr.io
+  # 镜像名称将使用仓库名称
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      # 这用于完成身份挑战
+      # 与sigstore/fulcio结合使用时...
+      id-token: write
+
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+
+    - name: 安装cosign
+      if: github.event_name != 'pull_request'
+      uses: sigstore/cosign-installer@v3.2.0
+      with:
+        cosign-release: 'v2.1.1'
+
+    - name: 设置Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 登录到Container Registry
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 提取元数据 (tags, labels)
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          # 为每个分支设置标签
+          type=ref,event=branch
+          # 为PR设置标签
+          type=ref,event=pr
+          # 为版本标签设置标签
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          # 为主分支设置latest标签
+          type=raw,value=latest,enable={{is_default_branch}}
+        labels: |
+          org.opencontainers.image.title=评论系统后端
+          org.opencontainers.image.description=为静态博客提供评论功能的FastAPI后端服务
+          org.opencontainers.image.vendor=YunHai
+          org.opencontainers.image.url=https://www.yhnotes.com
+
+    - name: 构建并推送Docker镜像
+      id: build-and-push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        build-args: |
+          BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+          VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+          REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
+
+    # 签名容器镜像
+    - name: 使用cosign签名容器镜像
+      if: ${{ github.event_name != 'pull_request' }}
+      env:
+        # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
+        TAGS: ${{ steps.meta.outputs.tags }}
+        DIGEST: ${{ steps.build-and-push.outputs.digest }}
+      # 这步使用GitHub的OIDC Token签名容器
+      run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+    - name: 生成安全报告
+      if: ${{ github.event_name != 'pull_request' }}
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: 上传安全报告到GitHub Security
+      if: ${{ github.event_name != 'pull_request' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'

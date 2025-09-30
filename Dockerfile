@@ -1,6 +1,11 @@
 # 使用官方Python运行时作为父镜像
 FROM python:3.11-slim
 
+# 添加构建参数
+ARG BUILDTIME
+ARG VERSION
+ARG REVISION
+
 # 设置工作目录
 WORKDIR /app
 
@@ -9,6 +14,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# 添加元数据标签
+LABEL org.opencontainers.image.title="评论系统后端" \
+      org.opencontainers.image.description="为静态博客提供评论功能的FastAPI后端服务" \
+      org.opencontainers.image.vendor="YunHai" \
+      org.opencontainers.image.url="https://www.yhnotes.com" \
+      org.opencontainers.image.created="${BUILDTIME}" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${REVISION}"
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y \
