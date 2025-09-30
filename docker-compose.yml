@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 评论系统API服务
   comment_api:
