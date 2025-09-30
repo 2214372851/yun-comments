@@ -20,6 +20,8 @@ from slowapi.errors import RateLimitExceeded
 
 
 # 配置日志
+if settings.LOG_FILE:
+    Path(settings.LOG_FILE).parent.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -75,13 +77,6 @@ app = FastAPI(
     1. 获取评论列表：`GET /api/comments?page={页面标识}`
     2. 提交评论：`POST /api/comments`
     3. 健康检查：`GET /api/health`
-    
-    ### 限流规则
-    
-    - IP限流：10次/分钟
-    - 用户限流：5次/分钟  
-    - 邮箱限流：3次/5分钟
-    - 全局限流：1000次/分钟
     """,
     docs_url="/docs",
     redoc_url="/redoc",
