@@ -24,6 +24,14 @@ on:
         - 'linux/amd64,linux/arm64'
         - 'linux/amd64'
         - 'linux/arm64'
+      dockerfile:
+        description: 'Dockerfile选择'
+        required: false
+        default: 'Dockerfile'
+        type: choice
+        options:
+        - 'Dockerfile'
+        - 'Dockerfile.alpine'
 
 env:
   REGISTRY: ghcr.io
@@ -78,7 +86,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
+          file: ./${{ github.event.inputs.dockerfile || 'Dockerfile' }}
           platforms: ${{ github.event.inputs.platforms || 'linux/amd64,linux/arm64' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -99,6 +107,7 @@ jobs:
             echo "**手动触发参数:**" >> $GITHUB_STEP_SUMMARY
             echo "- 自定义标签: ${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
             echo "- 构建平台: ${{ github.event.inputs.platforms }}" >> $GITHUB_STEP_SUMMARY
+            echo "- Dockerfile: ${{ github.event.inputs.dockerfile }}" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**镜像标签:**" >> $GITHUB_STEP_SUMMARY

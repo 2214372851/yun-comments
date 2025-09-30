@@ -15,15 +15,10 @@ on:
         required: false
         default: 'manual'
         type: string
-      enable_security_scan:
-        description: '启用安全扫描'
-        required: false
-        default: true
-        type: boolean
       enable_signing:
         description: '启用镜像签名'
         required: false
-        default: true
+        default: false
         type: boolean
 
 env:
@@ -45,11 +40,6 @@ jobs:
     steps:
     - name: 检出代码
       uses: actions/checkout@v4
-
-    - name: 安装cosign
-      uses: sigstore/cosign-installer@v3.2.0
-      with:
-        cosign-release: 'v2.1.1'
 
     - name: 设置Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -98,27 +88,3 @@ jobs:
           BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
           VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
           REVISION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
-
-    # 签名容器镜像
-    - name: 使用cosign签名容器镜像
-      if: ${{ github.event.inputs.enable_signing != 'false' }}
-      env:
-        # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
-        TAGS: ${{ steps.meta.outputs.tags }}
-        DIGEST: ${{ steps.build-and-push.outputs.digest }}
-      # 这步使用GitHub的OIDC Token签名容器
-      run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
-
-    - name: 生成安全报告
-      if: ${{ github.event.inputs.enable_security_scan != 'false' }}
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] || 'manual' }}
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-
-    - name: 上传安全报告到GitHub Security
-      if: ${{ github.event.inputs.enable_security_scan != 'false' }}
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: 'trivy-results.sarif'
