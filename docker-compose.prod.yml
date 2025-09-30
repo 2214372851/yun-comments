@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # 评论系统API服务 (使用GitHub Packages镜像)
   comment_api:
-    image: ghcr.io/yourusername/yun-comments:latest  # 替换为你的GitHub用户名
+    image: ghcr.io/2214372851/yun-comments:latest  # 替换为你的GitHub用户名
     container_name: comment-api-prod
     restart: unless-stopped
     ports:
