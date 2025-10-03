@@ -315,6 +315,10 @@ class SimplifiedCommentService:
             # 转换为响应模型
             reply_responses = []
             for reply in replies:
+                reply_count = self.db.query(Comment).filter(
+                    Comment.parent_id == reply.id,
+                    Comment.is_deleted == False
+                ).count()
                 reply_dict = {
                     "id": reply.id,
                     "page": reply.page,
@@ -326,7 +330,7 @@ class SimplifiedCommentService:
                     "updated_at": reply.updated_at.isoformat() if reply.updated_at else None,
                     "system_type": reply.system_type,
                     "location": reply.location,
-                    "reply_count": 0  # 回复不可再嵌套，所以回复计数为0
+                    "reply_count": reply_count
                 }
                 reply_responses.append(reply_dict)
             
