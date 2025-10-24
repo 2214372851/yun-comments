@@ -78,9 +78,9 @@ app = FastAPI(
     2. 提交评论：`POST /api/comments`
     3. 健康检查：`GET /api/health`
     """,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
+    openapi_url="/openapi.json" if settings.DEBUG else None,
     lifespan=lifespan
 )
 
